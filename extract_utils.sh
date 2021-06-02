@@ -439,6 +439,9 @@ function write_blueprint_packages() {
                         printf '\tcertificate: "%s",\n' "$ARG"
                     fi
                 done
+                if ! echo "${ARGS[@]}" | grep -w -q "PRESIGNED" ; then \
+                    printf '\tcertificate: "platform",\n'
+                fi
             fi
         elif [ "$CLASS" = "JAVA_LIBRARIES" ]; then
             printf 'dex_import {\n'
