@@ -379,9 +379,6 @@ function write_blueprint_packages() {
             PKGNAME="manifest_""$PKGNAME"
         fi
 
-        # Add to final package list
-        PACKAGE_LIST+=("$PKGNAME")
-
         SRC="proprietary"
         if [ "$PARTITION" = "system" ]; then
             SRC+="/system"
@@ -399,7 +396,13 @@ function write_blueprint_packages() {
 
         if [ "$CLASS" = "SHARED_LIBRARIES" ]; then
             printf 'cc_prebuilt_library_shared {\n'
-            printf '\tname: "%s",\n' "$PKGNAME"
+            if [ "$PARTITION" = "system" ] || [ "$PARTITION" = "product" ] || [ "$PARTITION" = "system_ext" ]; then
+                PKGNAME_NEW="$PKGNAME.system"
+                printf '\tname: "%s",\n' "$PKGNAME_NEW"
+                printf '\tstem: "%s",\n' "$PKGNAME"
+            else
+                printf '\tname: "%s",\n' "$PKGNAME"
+            fi
             printf '\towner: "%s",\n' "$VENDOR"
             printf '\tstrip: {\n'
             printf '\t\tnone: true,\n'
@@ -484,7 +487,13 @@ function write_blueprint_packages() {
             else
                 printf 'cc_prebuilt_binary {\n'
             fi
-            printf '\tname: "%s",\n' "$PKGNAME"
+            if [ "$PARTITION" = "system" ] || [ "$PARTITION" = "product" ] || [ "$PARTITION" = "system_ext" ]; then
+                PKGNAME_NEW="$PKGNAME.system"
+                printf '\tname: "%s",\n' "$PKGNAME_NEW"
+                printf '\tstem: "%s",\n' "$PKGNAME"
+            else
+                printf '\tname: "%s",\n' "$PKGNAME"
+            fi
             printf '\towner: "%s",\n' "$VENDOR"
             if [ "$ARGS" = "rootfs" ]; then
                 SRC="$SRC/rootfs"
@@ -536,13 +545,21 @@ function write_blueprint_packages() {
             printf '\tdevice_specific: true,\n'
         fi
         if [ ! -z "$DEPSRCFILE" ]; then
-               printf '\tshared_libs:[\n'
+               printf '\tshared_libs: [\n'
                 while read -r dep; do
+                    if [ "${dep}" = "libprotobuf-cpp-lite-3.9.1.so" ]; then
+                        dep="libprotobuf-cpp-lite"
+                    elif [ "${dep}" = "libprotobuf-cpp-full-3.9.1.so" ]; then
+                        dep="libprotobuf-cpp-full"
+                    fi
                     printf '\t\t%s,\n' "\"${dep%.*}\""
                 done < <(${PATCHELF_0_9} --print-needed "$ANDROID_ROOT"/"$OUTDIR"/"$DEPSRCFILE")
                 printf '\t],\n'
         fi
         printf '}\n\n'
+
+        # Add to final package list
+        PACKAGE_LIST+=("$PKGNAME")
     done
 }
 
@@ -574,6 +591,7 @@ function write_makefile_packages() {
     local EXTENSION=
     local PKGNAME=
     local SRC=
+    local DEPSRCFILE=
 
     for P in "${FILELIST[@]}"; do
         FILE=$(target_file "$P")
@@ -589,6 +607,11 @@ function write_makefile_packages() {
                 EXTENSION="\$(COMMON_ANDROID_PACKAGE_SUFFIX)"
         fi
         PKGNAME=${BASENAME%.*}
+
+        if [ "$CLASS" = "EXECUTABLES" ] && [ "$EXTENSION" != "sh" ]; then
+            PKGNAME="$BASENAME"
+            EXTENSION=""
+        fi
 
         # Add to final package list
         PACKAGE_LIST+=("$PKGNAME")
@@ -606,6 +629,8 @@ function write_makefile_packages() {
             SRC+="/odm"
         fi
 
+        DEPSRCFILE=
+
         printf 'include $(CLEAR_VARS)\n'
         printf 'LOCAL_MODULE := %s\n' "$PKGNAME"
         printf 'LOCAL_MODULE_OWNER := %s\n' "$VENDOR"
@@ -620,10 +645,13 @@ function write_makefile_packages() {
                 #    echo "LOCAL_MODULE_PATH_64 := \$(TARGET_OUT_SHARED_LIBRARIES)"
                 #    echo "LOCAL_MODULE_PATH_32 := \$(2ND_TARGET_OUT_SHARED_LIBRARIES)"
                 #fi
+                DEPSRCFILE="$SRC"/lib/"$FILE"
             elif [ "$EXTRA" = "64" ]; then
                 printf 'LOCAL_SRC_FILES := %s/lib64/%s\n' "$SRC" "$FILE"
+                DEPSRCFILE="$SRC"/lib64/"$FILE"
             else
                 printf 'LOCAL_SRC_FILES := %s/lib/%s\n' "$SRC" "$FILE"
+                DEPSRCFILE="$SRC"/lib/"$FILE"
             fi
             if [ "$EXTRA" != "none" ]; then
                 printf 'LOCAL_MULTILIB := %s\n' "$EXTRA"
@@ -661,6 +689,9 @@ function write_makefile_packages() {
                 SRC="$SRC/bin"
             fi
             printf 'LOCAL_SRC_FILES := %s/%s\n' "$SRC" "$FILE"
+            if [ "$EXTENSION" != "sh" ]; then
+                DEPSRCFILE="$SRC"/"$FILE"
+            fi
             unset EXTENSION
         else
             printf 'LOCAL_SRC_FILES := %s/%s\n' "$SRC" "$FILE"
@@ -690,6 +721,13 @@ function write_makefile_packages() {
         elif [ "$PARTITION" = "odm" ]; then
             printf 'LOCAL_ODM_MODULE := true\n'
         fi
+        if [ ! -z "$DEPSRCFILE" ]; then
+            printf 'LOCAL_SHARED_LIBRARIES := '
+            while read -r dep; do
+                printf '%s ' "${dep%.*}"
+            done < <(${PATCHELF_0_9} --print-needed "$ANDROID_ROOT"/"$OUTDIR"/"$DEPSRCFILE")
+            printf '\n'
+        fi
         printf 'include $(BUILD_PREBUILT)\n\n'
     done
 }
@@ -703,8 +741,6 @@ function write_makefile_packages() {
 # start with a single dash (-) character.
 #
 function write_product_packages() {
-    PACKAGE_LIST=()
-
     local COUNT=${#PRODUCT_PACKAGES_LIST[@]}
 
     if [ "$COUNT" = "0" ]; then
