@@ -359,6 +359,7 @@ function write_blueprint_packages() {
     local PKGNAME=
     local SRC=
     local OVERRIDEPKG=
+    local DEPSRCFILE=
 
     for P in "${FILELIST[@]}"; do
         FILE=$(target_file "$P")
@@ -394,6 +395,8 @@ function write_blueprint_packages() {
             SRC+="/odm"
         fi
 
+        DEPSRCFILE=
+
         if [ "$CLASS" = "SHARED_LIBRARIES" ]; then
             printf 'cc_prebuilt_library_shared {\n'
             printf '\tname: "%s",\n' "$PKGNAME"
@@ -409,20 +412,22 @@ function write_blueprint_packages() {
                 printf '\t\tandroid_arm64: {\n'
                 printf '\t\t\tsrcs: ["%s/lib64/%s"],\n' "$SRC" "$FILE"
                 printf '\t\t},\n'
+                DEPSRCFILE="$SRC"/lib/"$FILE"
             elif [ "$EXTRA" = "64" ]; then
                 printf '\t\tandroid_arm64: {\n'
                 printf '\t\t\tsrcs: ["%s/lib64/%s"],\n' "$SRC" "$FILE"
                 printf '\t\t},\n'
+                DEPSRCFILE="$SRC"/lib64/"$FILE"
             else
                 printf '\t\tandroid_arm: {\n'
                 printf '\t\t\tsrcs: ["%s/lib/%s"],\n' "$SRC" "$FILE"
                 printf '\t\t},\n'
+                DEPSRCFILE="$SRC"/lib/"$FILE"
             fi
             printf '\t},\n'
             if [ "$EXTRA" != "none" ]; then
                 printf '\tcompile_multilib: "%s",\n' "$EXTRA"
             fi
-            printf '\tcheck_elf_files: false,\n'
         elif [ "$CLASS" = "APEXES" ]; then
             printf 'prebuilt_apex {\n'
             printf '\tname: "%s",\n' "$PKGNAME"
@@ -500,7 +505,7 @@ function write_blueprint_packages() {
             fi
             printf '\tsrcs: ["%s/%s"],\n' "$SRC" "$FILE"
             if [ "$EXTENSION" != "sh" ]; then
-                printf '\tcheck_elf_files: false,\n'
+                DEPSRCFILE="$SRC"/"$FILE"
             fi
             unset EXTENSION
         else
@@ -535,6 +540,13 @@ function write_blueprint_packages() {
             printf '\tsystem_ext_specific: true,\n'
         elif [ "$PARTITION" = "odm" ]; then
             printf '\tdevice_specific: true,\n'
+        fi
+        if [ ! -z "$DEPSRCFILE" ]; then
+               printf '\tshared_libs:[\n'
+                while read -r dep; do
+                    printf '\t\t%s,\n' "\"${dep%.*}\""
+                done < <(${PATCHELF_0_9} --print-needed "$ANDROID_ROOT"/"$OUTDIR"/"$DEPSRCFILE")
+                printf '\t],\n'
         fi
         printf '}\n\n'
     done
