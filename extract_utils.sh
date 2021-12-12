@@ -368,7 +368,11 @@ function write_blueprint_packages() {
         BASENAME=$(basename "$FILE")
         DIRNAME=$(dirname "$FILE")
         EXTENSION=${BASENAME##*.}
-        PKGNAME=${BASENAME%.*}
+        if [ "$EXTENSION" = "^\.[0-9]-service" ]; then
+           PKGNAME=BASENAME
+        else
+           PKGNAME=${BASENAME%.*}
+        fi
 
         # Add to final package list
         PACKAGE_LIST+=("$PKGNAME")
@@ -390,7 +394,13 @@ function write_blueprint_packages() {
 
         if [ "$CLASS" = "SHARED_LIBRARIES" ]; then
             printf 'cc_prebuilt_library_shared {\n'
-            printf '\tname: "%s",\n' "$PKGNAME"
+            if [ "$PARTITION" = "system" ] || [ "$PARTITION" = "product" ] || [ "$PARTITION" = "system_ext" ]; then
+                PKGNAME_NEW="$PKGNAME.system"
+                printf '\tname: "%s",\n' "$PKGNAME_NEW"
+                printf '\tstem: "%s",\n' "$PKGNAME"
+            else
+                printf '\tname: "%s",\n' "$PKGNAME"
+            fi
             printf '\towner: "%s",\n' "$VENDOR"
             printf '\tstrip: {\n'
             printf '\t\tnone: true,\n'
@@ -468,7 +478,13 @@ function write_blueprint_packages() {
             else
                 printf 'cc_prebuilt_binary {\n'
             fi
-            printf '\tname: "%s",\n' "$PKGNAME"
+            if [ "$PARTITION" = "system" ] || [ "$PARTITION" = "product" ] || [ "$PARTITION" = "system_ext" ]; then
+                PKGNAME_NEW="$PKGNAME.system"
+                printf '\tname: "%s",\n' "$PKGNAME_NEW"
+                printf '\tstem: "%s",\n' "$PKGNAME"
+            else
+                printf '\tname: "%s",\n' "$PKGNAME"
+            fi
             printf '\towner: "%s",\n' "$VENDOR"
             if [ "$ARGS" = "rootfs" ]; then
                 SRC="$SRC/rootfs"
@@ -520,7 +536,8 @@ function write_blueprint_packages() {
             printf '\tdevice_specific: true,\n'
         fi
         if [ ! -z "$DEPSRCFILE" ]; then
-               printf '\tshared_libs:[\n'
+               echo "$DEPSRCFILE" >&2
+               printf '\tshared_libs: [\n'
                 while read -r dep; do
                     printf '\t\t%s,\n' "\"${dep%.*}\""
                 done < <(${PATCHELF_0_9} --print-needed "$ANDROID_ROOT"/"$OUTDIR"/"$DEPSRCFILE")
@@ -730,7 +747,9 @@ function write_product_packages() {
     fi
 
     local T_V_LIB32=( $(prefix_match "vendor/lib/") )
+    echo "${T_V_LIB32[*]}" >&2
     local T_V_LIB64=( $(prefix_match "vendor/lib64/") )
+    echo "${T_V_LIB64[*]}" >&2
     local V_MULTILIBS=( $(comm -12 <(printf '%s\n' "${T_V_LIB32[@]}") <(printf '%s\n' "${T_V_LIB64[@]}")) )
     local V_LIB32=( $(comm -23 <(printf '%s\n' "${T_V_LIB32[@]}") <(printf '%s\n' "${V_MULTILIBS[@]}")) )
     local V_LIB64=( $(comm -23 <(printf '%s\n' "${T_V_LIB64[@]}") <(printf '%s\n' "${V_MULTILIBS[@]}")) )
