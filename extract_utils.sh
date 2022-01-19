@@ -414,6 +414,19 @@ function write_blueprint_packages() {
                 printf '\tcompile_multilib: "%s",\n' "$EXTRA"
             fi
             printf '\tcheck_elf_files: false,\n'
+        elif [ "$CLASS" = "APEXES" ]; then
+            printf 'prebuilt_apex {\n'
+            printf '\tname: "%s",\n' "$PKGNAME"
+            printf '\towner: "%s",\n' "$VENDOR"
+            printf '\tsrc: "%s/apex/%s",\n' "$SRC" "$FILE"
+            ARGS=(${ARGS//;/ })
+            for ARG in "${ARGS[@]}"; do
+                if [[ "$ARG" =~ "OVERRIDES" ]]; then
+                    OVERRIDEPKG=${ARG#*=}
+                    OVERRIDEPKG=${OVERRIDEPKG//,/\", \"}
+                    printf '\toverrides: ["%s"],\n' "$OVERRIDEPKG"
+                fi
+            done
         elif [ "$CLASS" = "APPS" ]; then
             printf 'android_app_import {\n'
             printf '\tname: "%s",\n' "$PKGNAME"
@@ -779,6 +792,32 @@ function write_product_packages() {
     fi
     if [ "${#O_LIB64[@]}" -gt "0" ]; then
         write_blueprint_packages "SHARED_LIBRARIES" "odm" "64" "O_LIB64" >> "$ANDROIDBP"
+    fi
+
+    # Apexes
+    local APEXES=( $(prefix_match "apex/") )
+    if [ "${#APEXES[@]}" -gt "0" ]; then
+        write_blueprint_packages "APEXES" "" "" "APEXES" >> "$ANDROIDBP"
+    fi
+    local S_APEXES=( $(prefix_match "system/apex/") )
+    if [ "${#S_APEXES[@]}" -gt "0" ]; then
+        write_blueprint_packages "APEXES" "system" "" "S_APEXES" >> "$ANDROIDBP"
+    fi
+    local V_APEXES=( $(prefix_match "vendor/apex/") )
+    if [ "${#V_APEXES[@]}" -gt "0" ]; then
+        write_blueprint_packages "APEXES" "vendor" "" "V_APEXES" >> "$ANDROIDBP"
+    fi
+    local P_APEXES=( $(prefix_match "product/apex/") )
+    if [ "${#P_APEXES[@]}" -gt "0" ]; then
+        write_blueprint_packages "APEXES" "product" "" "P_APEXES" >> "$ANDROIDBP"
+    fi
+    local SE_APEXES=( $(prefix_match "system_ext/apex/") )
+    if [ "${#SE_APEXES[@]}" -gt "0" ]; then
+        write_blueprint_packages "APEXES" "system_ext" "" "SE_APEXES" >> "$ANDROIDBP"
+    fi
+    local O_APEXES=( $(prefix_match "odm/apex/") )
+    if [ "${#O_APEXES[@]}" -gt "0" ]; then
+        write_blueprint_packages "APEXES" "odm" "" "O_APEXES" >> "$ANDROIDBP"
     fi
 
     # Apps
@@ -1786,7 +1825,7 @@ function generate_prop_list_from_image() {
         if array_contains "$FILE" "${skipped_vendor_files[@]}"; then
             continue
         fi
-        if suffix_match_file ".apk" "$FILE" ; then
+        if suffix_match_file ".apk" "$FILE" || suffix_match_file ".apex" "$FILE" ; then
             echo "-vendor/$FILE" >> "$output_list_tmp"
         else
             echo "vendor/$FILE" >> "$output_list_tmp"
