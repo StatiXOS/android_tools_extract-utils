@@ -471,6 +471,9 @@ function write_blueprint_packages() {
             else
                 printf 'prebuilt_etc {\n'
             fi
+            if [[ "$FILE" =~ "vintf" ]] && [[ ! "$PKGNAME" =~ "manifest_" ]]; then
+                PKGNAME="manifest_""$PKGNAME"
+            fi
             printf '\tname: "%s",\n' "$PKGNAME"
             printf '\towner: "%s",\n' "$VENDOR"
             printf '\tsrc: "%s/etc/%s",\n' "$SRC" "$FILE"
