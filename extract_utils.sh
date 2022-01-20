@@ -374,9 +374,6 @@ function write_blueprint_packages() {
             EXTENSION=""
         fi
 
-        # Add to final package list
-        PACKAGE_LIST+=("$PKGNAME")
-
         SRC="proprietary"
         if [ "$PARTITION" = "system" ]; then
             SRC+="/system"
@@ -471,6 +468,9 @@ function write_blueprint_packages() {
             else
                 printf 'prebuilt_etc {\n'
             fi
+            if [[ "$FILE" =~ "vintf" ]] && [[ ! "$PKGNAME" =~ "manifest_" ]]; then
+                PKGNAME="manifest_""$PKGNAME"
+            fi
             printf '\tname: "%s",\n' "$PKGNAME"
             printf '\towner: "%s",\n' "$VENDOR"
             printf '\tsrc: "%s/etc/%s",\n' "$SRC" "$FILE"
@@ -533,6 +533,9 @@ function write_blueprint_packages() {
             printf '\tdevice_specific: true,\n'
         fi
         printf '}\n\n'
+
+        # Add to final package list
+        PACKAGE_LIST+=("$PKGNAME")
     done
 }
 
