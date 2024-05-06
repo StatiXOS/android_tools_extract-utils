@@ -384,6 +384,9 @@ function write_blueprint_packages() {
             PKGNAME="manifest_""$PKGNAME"
         fi
 
+        # Add to final package list
+        PACKAGE_LIST+=("$PKGNAME")
+
         SRC="proprietary"
         if [ "$PARTITION" = "system" ]; then
             SRC+="/system"
@@ -399,14 +402,7 @@ function write_blueprint_packages() {
 
         if [ "$CLASS" = "SHARED_LIBRARIES" ]; then
             printf 'cc_prebuilt_library_shared {\n'
-            if [ "$PARTITION" = "system" ] || [ "$PARTITION" = "product" ] || [ "$PARTITION" = "system_ext" ]; then
-                PKGNAME_NEW="$PKGNAME.system"
-                printf '\tname: "%s",\n' "$PKGNAME_NEW"
-                printf '\tstem: "%s",\n' "$PKGNAME"
-                PKGNAME="$PKGNAME_NEW"
-            else
-                printf '\tname: "%s",\n' "$PKGNAME"
-            fi
+            printf '\tname: "%s",\n' "$PKGNAME"
             printf '\towner: "%s",\n' "$VENDOR"
             printf '\tstrip: {\n'
             printf '\t\tnone: true,\n'
@@ -490,14 +486,7 @@ function write_blueprint_packages() {
             else
                 printf 'cc_prebuilt_binary {\n'
             fi
-            if [ "$PARTITION" = "system" ] || [ "$PARTITION" = "product" ] || [ "$PARTITION" = "system_ext" ]; then
-                PKGNAME_NEW="$PKGNAME.system"
-                printf '\tname: "%s",\n' "$PKGNAME_NEW"
-                printf '\tstem: "%s",\n' "$PKGNAME"
-                PKGNAME="$PKGNAME_NEW"
-            else
-                printf '\tname: "%s",\n' "$PKGNAME"
-            fi
+            printf '\tname: "%s",\n' "$PKGNAME"
             printf '\towner: "%s",\n' "$VENDOR"
             if [ "$ARGS" = "rootfs" ]; then
                 SRC="$SRC/rootfs"
@@ -549,9 +538,6 @@ function write_blueprint_packages() {
             printf '\tdevice_specific: true,\n'
         fi
         printf '}\n\n'
-
-        # Add to final package list                                                                                                                                                                                                           │·································
-        PACKAGE_LIST+=("$PKGNAME")
     done
 }
 
