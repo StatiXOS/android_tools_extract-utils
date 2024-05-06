@@ -380,10 +380,6 @@ function write_blueprint_packages() {
             EXTENSION=""
         fi
 
-        if [ "$CLASS" = "ETC" ] && [[ "$FILE" =~ "vintf" ]] && [[ ! "$PKGNAME" =~ "manifest_" ]]; then
-            PKGNAME="manifest_""$PKGNAME"
-        fi
-
         # Add to final package list
         PACKAGE_LIST+=("$PKGNAME")
 
